@@ -45,7 +45,7 @@ func (p *Plugin) ExecuteCommand(c *plugin.Context, args *model.CommandArgs) (*mo
 		parameters = split[2:]
 	}
 
-	if command != "/spin-server" {
+	if command != "/bot-server" {
 		return &model.CommandResponse{}, nil
 	}
 
@@ -66,16 +66,16 @@ func (p *Plugin) ExecuteCommand(c *plugin.Context, args *model.CommandArgs) (*mo
 	}
 
 	if action == "" {
-		return getCommandResponse(model.COMMAND_RESPONSE_TYPE_EPHEMERAL, "Missing command, please run `/spin-server help` to check all commands available."), nil
+		return getCommandResponse(model.COMMAND_RESPONSE_TYPE_EPHEMERAL, "Missing command, please run `/bot-server help` to check all commands available."), nil
 	}
 
 	if action == "help" {
-		msg := "run:\n/spin-server spin RELEASE_TAG to spin a new test server\n/spin-server destroy to destroy the test server"
+		msg := "run:\n/bot-server spin RELEASE_TAG to spin a new test server\n/bot-server destroy to destroy the test server"
 		return getCommandResponse(model.COMMAND_RESPONSE_TYPE_EPHEMERAL, msg), nil
 	}
 
 	if action != "spin" && action != "destroy" && action != "help" {
-		return getCommandResponse(model.COMMAND_RESPONSE_TYPE_EPHEMERAL, "Invalid command, please run `/spin-server help` to check all commands available. Action="+action), nil
+		return getCommandResponse(model.COMMAND_RESPONSE_TYPE_EPHEMERAL, "Invalid command, please run `/bot-server help` to check all commands available. Action="+action), nil
 	}
 
 	switch action {
@@ -85,7 +85,7 @@ func (p *Plugin) ExecuteCommand(c *plugin.Context, args *model.CommandArgs) (*mo
 		}
 		checkInstance := p.getInstanceId(args.UserId)
 		if checkInstance != "" {
-			return getCommandResponse(model.COMMAND_RESPONSE_TYPE_EPHEMERAL, "You already have a test server running, if you want another please detroy this first."), nil
+			return getCommandResponse(model.COMMAND_RESPONSE_TYPE_EPHEMERAL, "You already have a test server running, if you want another please destroy this first."), nil
 		}
 
 		instanceId, publicDns := p.spinServer(args.UserId, args.ChannelId, parameters)
@@ -95,13 +95,13 @@ func (p *Plugin) ExecuteCommand(c *plugin.Context, args *model.CommandArgs) (*mo
 
 		err := p.storeInstanceId(args.UserId, instanceId)
 		if err != nil {
-			return getCommandResponse(model.COMMAND_RESPONSE_TYPE_EPHEMERAL, "Error saving the instance Id, here is to you use when call the detroy command instanceId="+instanceId), nil
+			return getCommandResponse(model.COMMAND_RESPONSE_TYPE_EPHEMERAL, "Error saving the instance Id, here is to you use when call the destroy command instanceId="+instanceId), nil
 		}
 
 		p.sendMessageSpinServer(c, args, publicDns)
 	case "destroy":
 		if len(parameters) == 0 {
-			return getCommandResponse(model.COMMAND_RESPONSE_TYPE_EPHEMERAL, "Mising the name of the server to destroy"), nil
+			return getCommandResponse(model.COMMAND_RESPONSE_TYPE_EPHEMERAL, "Missing the name of the server to destroy"), nil
 		}
 		info, err := p.deleteInstanceId(args.UserId, parameters[0])
 		if err != nil {
@@ -113,7 +113,7 @@ func (p *Plugin) ExecuteCommand(c *plugin.Context, args *model.CommandArgs) (*mo
 		return getCommandResponse(model.COMMAND_RESPONSE_TYPE_EPHEMERAL, "Instance "+info+" destroyed."), nil
 
 	case "help":
-		msg := "run:\n/spin-server spin [flags] to spin a new test server\n/spin-server destroy to destroy the test server"
+		msg := "run:\n/bot-server spin [flags] to spin a new test server\n/bot-server destroy to destroy the test server"
 		return getCommandResponse(model.COMMAND_RESPONSE_TYPE_EPHEMERAL, msg), nil
 	}
 

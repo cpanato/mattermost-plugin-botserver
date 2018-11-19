@@ -9,8 +9,6 @@ import (
 	"github.com/mattermost/mattermost-server/plugin"
 )
 
-const spinBotUsername = "spinserverbot"
-
 type Plugin struct {
 	plugin.MattermostPlugin
 
