@@ -4,6 +4,6 @@ var manifest = struct {
 	Id      string
 	Version string
 }{
-	Id:      "com.mattermost.sample-plugin",
+	Id:      "com.cpanato.botserver",
 	Version: "0.0.1",
 }

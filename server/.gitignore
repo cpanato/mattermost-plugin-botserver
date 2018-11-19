@@ -1,3 +1,5 @@
 coverage.txt
 vendor
 .depensure
+build/.DS_Store
+.DS_Store

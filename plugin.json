@@ -1,7 +1,7 @@
 {
-    "id": "com.mattermost.sample-plugin",
-    "name": "Sample Plugin",
-    "description": "This plugin serves as a starting point for writing a Mattermost plugin.",
+    "id": "com.cpanato.botserver",
+    "name": "Bot Server",
+    "description": "This plugin spin an environment to you test your application",
     "version": "0.0.1",
     "server": {
         "executables": {
@@ -10,12 +10,71 @@
             "windows-amd64": "server/dist/plugin-windows-amd64.exe"
         }
     },
-    "webapp": {
-        "bundle_path": "webapp/dist/main.js"
-    },
     "settings_schema": {
-        "header": "",
-        "footer": "",
-        "settings": []
+        "header": "Setup your Test Server Bot",
+        "footer": "Made with ❤️",
+        "settings": [
+            {
+                "key": "AWSAccessKey",
+                "display_name": "AWS Access Key",
+                "type": "text",
+                "help_text": "The AWS Access Key to spin the test server."
+            },
+            {
+                "key": "AWSSecretKey",
+                "display_name": "AWS Secret Key",
+                "type": "text",
+                "help_text": "The AWS Secret Key to spin the test server."
+            },
+            {
+                "key": "AWSRegion",
+                "display_name": "AWS Region",
+                "type": "text",
+                "default": "us-east-1",
+                "help_text": "The AWS Region to spin the test server."
+            },
+            {
+                "key": "AWSImageId",
+                "display_name": "AWS AMI Id",
+                "type": "text",
+                "help_text": "AWS AMI Id to use to start the servers."
+            },
+            {
+                "key": "AWSInstanceType",
+                "display_name": "AWS Instance type",
+                "type": "text",
+                "help_text": "AWS Instance type. ie: `t2.small`"
+            },
+            {
+                "key": "AWSHostedZoneId",
+                "display_name": "AWS Hosted Zone Id",
+                "type": "text",
+                "help_text": "AWS Hosted Zone Id in your Route 53."
+            },
+            {
+                "key": "AWSDnsSuffix",
+                "display_name": "Dns Suffix",
+                "type": "text",
+                "help_text": "The name of your DNS to create the entry in Route 53 for your test app."
+            },
+            {
+                "key": "AWSSecurityGroup",
+                "display_name": "AWS Security Group",
+                "type": "text",
+                "help_text": "AWS Security Group in order to allow incomming and outcome conections."
+            },
+            {
+                "key": "AllowedUserIds",
+                "display_name": "UserIds allowed to use the bot",
+                "type": "text",
+                "help_text": "A list of User Ids separated by comma, that is allowed to use the command."
+            },
+            {
+                "key": "EnvironmentTemplate",
+                "display_name": "The Template to spin the test environment",
+                "type": "longtext",
+                "help_text": "Add here your cloud Init file."
+            }
+        ]
     }
 }
