@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/base64"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -14,8 +15,6 @@ import (
 	"github.com/mattermost/mattermost-server/model"
 	"github.com/mattermost/mattermost-server/plugin"
 )
-
-const COMMAND_HELP = `* `
 
 const (
 	SPIN_ICON_URL = "https://icon-icons.com/icons2/1371/PNG/512/robot01_90832.png"
@@ -70,7 +69,7 @@ func (p *Plugin) ExecuteCommand(c *plugin.Context, args *model.CommandArgs) (*mo
 	}
 
 	if action == "help" {
-		msg := "run:\n/bot-server spin RELEASE_TAG to spin a new test server\n/bot-server destroy to destroy the test server"
+		msg := "run:\n/bot-server spin PACKAGE_URL INSTANCE_NAME to spin a new test server\n/bot-server destroy INSTANCE_NAME to destroy the test server"
 		return getCommandResponse(model.COMMAND_RESPONSE_TYPE_EPHEMERAL, msg), nil
 	}
 
@@ -80,25 +79,30 @@ func (p *Plugin) ExecuteCommand(c *plugin.Context, args *model.CommandArgs) (*mo
 
 	switch action {
 	case "spin":
-		if len(parameters) == 0 {
-			return getCommandResponse(model.COMMAND_RESPONSE_TYPE_EPHEMERAL, "Missing the Tag to deploy the app"), nil
+		if len(parameters) != 2 {
+			return getCommandResponse(model.COMMAND_RESPONSE_TYPE_EPHEMERAL, "Missing the PACKAGE_URL or INSTANCE_NAME to deploy the app"), nil
 		}
+
+		if !isValidUrl(parameters[0]) {
+			return getCommandResponse(model.COMMAND_RESPONSE_TYPE_EPHEMERAL, "PACKAGE_URL is not valid."), nil
+		}
+
 		checkInstance := p.getInstanceId(args.UserId)
 		if checkInstance != "" {
 			return getCommandResponse(model.COMMAND_RESPONSE_TYPE_EPHEMERAL, "You already have a test server running, if you want another please destroy this first."), nil
 		}
 
-		instanceId, publicDns := p.spinServer(args.UserId, args.ChannelId, parameters)
-		if instanceId == "" {
+		instanceID, publicDNS := p.spinServer(args.UserId, args.ChannelId, parameters)
+		if instanceID == "" {
 			return getCommandResponse(model.COMMAND_RESPONSE_TYPE_EPHEMERAL, "Error creating the Environment. Please check if your sysadmin the configuration"), nil
 		}
 
-		err := p.storeInstanceId(args.UserId, instanceId)
+		err := p.storeInstanceId(args.UserId, instanceID)
 		if err != nil {
-			return getCommandResponse(model.COMMAND_RESPONSE_TYPE_EPHEMERAL, "Error saving the instance Id, here is to you use when call the destroy command instanceId="+instanceId), nil
+			return getCommandResponse(model.COMMAND_RESPONSE_TYPE_EPHEMERAL, "Error saving the instance Id, here is to you use when call the destroy command instanceID="+instanceID), nil
 		}
 
-		p.sendMessageSpinServer(c, args, publicDns)
+		p.sendMessageSpinServer(c, args, publicDNS)
 	case "destroy":
 		if len(parameters) == 0 {
 			return getCommandResponse(model.COMMAND_RESPONSE_TYPE_EPHEMERAL, "Missing the name of the server to destroy"), nil
@@ -189,8 +193,8 @@ func (p *Plugin) spinServer(userId, channelId string, parameters []string) (inst
 }
 
 func (p *Plugin) sendMessageSpinServer(c *plugin.Context, args *model.CommandArgs, publicDNSName string) {
-	siteURL := "http://localhost:8065"
-
+	config := p.API.GetConfig()
+	siteURLPort := *config.ServiceSettings.ListenAddress
 	action1 := &model.PostAction{
 		Name: "Destroy Test Server",
 		Type: model.POST_ACTION_TYPE_BUTTON,
@@ -200,7 +204,7 @@ func (p *Plugin) sendMessageSpinServer(c *plugin.Context, args *model.CommandArg
 				"public_dns": publicDNSName,
 				"user_id":    args.UserId,
 			},
-			URL: fmt.Sprintf("%v/plugins/%v/destroy", siteURL, PluginId),
+			URL: fmt.Sprintf("http://localhost%v/plugins/%v/destroy", siteURLPort, PluginId),
 		},
 	}
 	sa1 := &model.SlackAttachment{
@@ -394,4 +398,13 @@ func (p *Plugin) sendEphemeralMessage(msg, channelId, userId string) {
 	p.API.LogDebug("Will send an ephemeralPost", "msg", msg)
 
 	p.API.SendEphemeralPost(userId, ephemeralPost)
+}
+
+func isValidUrl(toTest string) bool {
+	_, err := url.ParseRequestURI(toTest)
+	if err != nil {
+		return false
+	} else {
+		return true
+	}
 }

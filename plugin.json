@@ -2,7 +2,7 @@
     "id": "com.cpanato.botserver",
     "name": "Bot Server",
     "description": "This plugin spin an environment to you test your application",
-    "version": "0.0.1",
+    "version": "0.0.3",
     "server": {
         "executables": {
             "linux-amd64": "server/dist/plugin-linux-amd64",
@@ -12,7 +12,7 @@
     },
     "settings_schema": {
         "header": "Setup your Test Server Bot",
-        "footer": "Made with ❤️",
+        "footer": "Made with ❤️ ",
         "settings": [
             {
                 "key": "AWSAccessKey",

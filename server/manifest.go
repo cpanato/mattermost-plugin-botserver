@@ -5,5 +5,5 @@ var manifest = struct {
 	Version string
 }{
 	Id:      "com.cpanato.botserver",
-	Version: "0.0.1",
+	Version: "0.0.3",
 }
