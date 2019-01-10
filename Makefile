@@ -10,15 +10,14 @@ include build/setup.mk
 
 BUNDLE_NAME ?= $(PLUGIN_ID)-$(PLUGIN_VERSION).tar.gz
 
-## Checks the code style, tests, builds and bundles the plugin.
+# all, the default target, tests, builds and bundles the plugin.
 all: check-style test dist
 
-## Propagates plugin manifest information into the server/ and webapp/ folders as required.
+# apply propagates the plugin id into the server/ and webapp/ folders as required.
 .PHONY: apply
 apply:
 	./build/bin/manifest apply
 
-## Runs govet and gofmt against all packages.
 .PHONY: check-style
 check-style: server/.depensure webapp/.npminstall gofmt govet
 	@echo Checking for style guide compliance
@@ -27,7 +26,6 @@ ifneq ($(HAS_WEBAPP),)
 	cd webapp && npm run lint
 endif
 
-## Runs gofmt against all packages.
 .PHONY: gofmt
 gofmt:
 ifneq ($(HAS_SERVER),)
@@ -47,7 +45,6 @@ ifneq ($(HAS_SERVER),)
 	@echo Gofmt success
 endif
 
-## Runs govet against all packages.
 .PHONY: govet
 govet:
 ifneq ($(HAS_SERVER),)
@@ -56,14 +53,14 @@ ifneq ($(HAS_SERVER),)
 	@echo Govet success
 endif
 
-## Ensures the server dependencies are installed.
+# server/.depensure ensures the server dependencies are installed
 server/.depensure:
 ifneq ($(HAS_SERVER),)
 	cd server && $(DEP) ensure
 	touch $@
 endif
 
-## Builds the server, if it exists, including support for multiple architectures.
+# server builds the server, if it exists, including support for multiple architectures
 .PHONY: server
 server: server/.depensure
 ifneq ($(HAS_SERVER),)
@@ -73,21 +70,21 @@ ifneq ($(HAS_SERVER),)
 	cd server && env GOOS=windows GOARCH=amd64 $(GO) build -o dist/plugin-windows-amd64.exe;
 endif
 
-## Ensures NPM dependencies are installed without having to run this all the time.
+# webapp/.npminstall ensures NPM dependencies are installed without having to run this all the time
 webapp/.npminstall:
 ifneq ($(HAS_WEBAPP),)
 	cd webapp && $(NPM) install
 	touch $@
 endif
 
-## Builds the webapp, if it exists.
+# webapp builds the webapp, if it exists
 .PHONY: webapp
 webapp: webapp/.npminstall
 ifneq ($(HAS_WEBAPP),)
 	cd webapp && $(NPM) run build;
 endif
 
-## Generates a tar bundle of the plugin for install.
+# bundle generates a tar bundle of the plugin for install
 .PHONY: bundle
 bundle:
 	rm -rf dist/
@@ -105,18 +102,20 @@ endif
 
 	@echo plugin built at: dist/$(BUNDLE_NAME)
 
-## Builds and bundles the plugin.
+# dist builds and bundles the plugin
 .PHONY: dist
-dist:	apply server webapp bundle
+dist: apply \
+      server \
+      webapp \
+      bundle
 
-## Installs the plugin to a (development) server.
+# deploy installs the plugin to a (development) server, using the API if appropriate environment
+# variables are defined, or copying the files directly to a sibling mattermost-server directory
 .PHONY: deploy
 deploy: dist
-## It uses the API if appropriate environment variables are defined,
-## or copying the files directly to a sibling mattermost-server directory.
 ifneq ($(and $(MM_SERVICESETTINGS_SITEURL),$(MM_ADMIN_USERNAME),$(MM_ADMIN_PASSWORD),$(HTTP)),)
 	@echo "Installing plugin via API"
-		(TOKEN=`http --print h POST $(MM_SERVICESETTINGS_SITEURL)/api/v4/users/login login_id=$(MM_ADMIN_USERNAME) password=$(MM_ADMIN_PASSWORD) | grep Token | cut -f2 -d' '` && \
+		(TOKEN=`http --print h POST $(MM_SERVICESETTINGS_SITEURL)/api/v4/users/login login_id=$(MM_ADMIN_USERNAME) password=$(MM_ADMIN_PASSWORD) X-Requested-With:"XMLHttpRequest" | grep Token | cut -f2 -d' '` && \
 		  http --print b GET $(MM_SERVICESETTINGS_SITEURL)/api/v4/users/me Authorization:"Bearer $$TOKEN" && \
 			http --print b DELETE $(MM_SERVICESETTINGS_SITEURL)/api/v4/plugins/$(PLUGIN_ID) Authorization:"Bearer $$TOKEN" && \
 			http --print b --check-status --form POST $(MM_SERVICESETTINGS_SITEURL)/api/v4/plugins plugin@dist/$(BUNDLE_NAME) Authorization:"Bearer $$TOKEN" && \
@@ -138,7 +137,7 @@ else
 	@echo "No supported deployment method available. Install plugin manually."
 endif
 
-## Runs any lints and unit tests defined for the server and webapp, if they exist.
+# test runs any lints and unit tests defined for the server and webapp, if they exist
 .PHONY: test
 test: server/.depensure webapp/.npminstall
 ifneq ($(HAS_SERVER),)
@@ -148,7 +147,7 @@ ifneq ($(HAS_WEBAPP),)
 	cd webapp && $(NPM) run fix;
 endif
 
-## Clean removes all build artifacts.
+# clean removes all build artifacts
 .PHONY: clean
 clean:
 	rm -fr dist/
@@ -162,8 +161,3 @@ ifneq ($(HAS_WEBAPP),)
 	rm -fr webapp/node_modules
 endif
 	rm -fr build/bin/
-
-# Help documentatin à la https://marmelab.com/blog/2016/02/29/auto-documented-makefile.html
-help:
-	@cat Makefile | grep -v '\.PHONY' |  grep -v '\help:' | grep -B1 -E '^[a-zA-Z_.-]+:.*' | sed -e "s/:.*//" | sed -e "s/^## //" |  grep -v '\-\-' | tac | awk 'NR%2{printf "\033[36m%-30s\033[0m",$$0;next;}1' | sort
-
