@@ -25,9 +25,12 @@ func (p *Plugin) OnActivate() error {
 		return err
 	}
 
-	p.API.RegisterCommand(getCommand())
+	return p.API.RegisterCommand(getCommand())
+}
 
-	return nil
+func (p *Plugin) OnDeactivate() error {
+	command := getCommand()
+	return p.API.UnregisterCommand("", command.Trigger)
 }
 
 // OnConfigurationChange is invoked when configuration changes may have been made.
