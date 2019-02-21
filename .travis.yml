@@ -1,10 +1,18 @@
 language: go
 go:
-  - "1.11.x"
-
+- 1.11.x
 install:
-  - curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
-
+- curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
 script:
-  - make check-style
-  - make test
+- make check-style
+- make test
+deploy:
+  provider: releases
+  api_key:
+    secure: s5gyZbsI0oITldEM5fSkyv1L4CSLg0Nzm8xPcug2CSKsdzmXA4Q+JmEoWCU9C/6lzqXlmXtG0JDKBoDpxzWCY4uGWCnj70orps3bUVb42St0isIVLa8JyNsUoVVKjPDJaWY1SItm1rRka6aemPxSFdnghglQzVcBQPuEnTZtUi9osufu3PBCxAwozALmUW4HsJo/EVrfBQkktCKr2tYuQeoNu8zXmuSTB8sKtx3yqs7UxuGYe2uEdbA8GiVv+K9Zjcua1G/jyIdMMJFJfCgisluclmNdC2SnD6NxptQqmNS7lhA/WfiqmB6jUnhrHo/Bzw0kn4NLR3uX42HOgGKdzZbtCbVB6SHZSrr5qOq/fi7+TO/4HWJ2szdP2clfx4TThu7nv7lF4Qr1C/v4sztRtaRwbPSSN8s1AQNigP+E9iph2gDnJcT4hkdY0YoFI3gGHno0BuzMa40GVPvbRwK0RpepMCH5Zt+nUXgL/oYQvN41ftEr2Rus68ok5yUOT5HBzUBJx7zMU9MXCmYqLjfsV+jVGehfbSBUhdBFIuLu9iwMTsdi3Y8r92nvhVomUzC2GTj7bBc5O0KG1UXgeX1qXpkIJwOJQRl+a4G1WMXIJqX12U4n9wtGbu9MH6v4FCxSq6QKi9STI8KbTU3A7qN1SgWGVdceMtQiAEbnv9SpAPw=
+  skip_cleanup: true
+  file_glob: true
+  file: dist/com.cpanato.botserver-*.tar.gz
+  on:
+    repo: cpanato/mattermost-plugin-botserver
+    tags: true
