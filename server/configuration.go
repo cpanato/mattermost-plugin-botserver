@@ -14,6 +14,7 @@ type configuration struct {
 	AWSHostedZoneId     string
 	AWSDnsSuffix        string
 	AWSSecurityGroup    string
+	AWSSubnetId         string
 	AllowedUserIds      string
 	EnvironmentTemplate string
 }

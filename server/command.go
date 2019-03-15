@@ -92,7 +92,7 @@ func (p *Plugin) ExecuteCommand(c *plugin.Context, args *model.CommandArgs) (*mo
 			return getCommandResponse(model.COMMAND_RESPONSE_TYPE_EPHEMERAL, "You already have a test server running, if you want another please destroy this first."), nil
 		}
 
-		instanceID, publicDNS := p.spinServer(args.UserId, args.ChannelId, parameters)
+		instanceID, publicIP, internalIP := p.spinServer(args.UserId, args.ChannelId, parameters)
 		if instanceID == "" {
 			return getCommandResponse(model.COMMAND_RESPONSE_TYPE_EPHEMERAL, "Error creating the Environment. Please check if your sysadmin the configuration"), nil
 		}
@@ -102,7 +102,7 @@ func (p *Plugin) ExecuteCommand(c *plugin.Context, args *model.CommandArgs) (*mo
 			return getCommandResponse(model.COMMAND_RESPONSE_TYPE_EPHEMERAL, "Error saving the instance Id, here is to you use when call the destroy command instanceID="+instanceID), nil
 		}
 
-		p.sendMessageSpinServer(c, args, publicDNS)
+		p.sendMessageSpinServer(c, args, publicIP, internalIP)
 	case "destroy":
 		if len(parameters) == 0 {
 			return getCommandResponse(model.COMMAND_RESPONSE_TYPE_EPHEMERAL, "Missing the name of the server to destroy"), nil
@@ -124,7 +124,7 @@ func (p *Plugin) ExecuteCommand(c *plugin.Context, args *model.CommandArgs) (*mo
 	return &model.CommandResponse{}, nil
 }
 
-func (p *Plugin) spinServer(userId, channelId string, parameters []string) (instanceID, domainName string) {
+func (p *Plugin) spinServer(userId, channelId string, parameters []string) (instanceID, domainName string, internalIP string) {
 	svc := ec2.New(session.New(), p.GetAwsConfig())
 
 	setupScript := p.configuration.EnvironmentTemplate
@@ -145,12 +145,13 @@ func (p *Plugin) spinServer(userId, channelId string, parameters []string) (inst
 		InstanceType:     &p.configuration.AWSInstanceType,
 		UserData:         &sdata,
 		SecurityGroupIds: []*string{&p.configuration.AWSSecurityGroup},
+		SubnetId:         &p.configuration.AWSSubnetId,
 	}
 
 	resp, err := svc.RunInstances(params)
 	if err != nil {
 		p.API.LogError("We could not create the aws resource", "user_id", userId, "err", err.Error())
-		return "", ""
+		return "", "", ""
 	}
 	instanceId := resp.Instances[0].InstanceId
 
@@ -158,9 +159,9 @@ func (p *Plugin) spinServer(userId, channelId string, parameters []string) (inst
 	p.sendEphemeralMessage(msg, channelId, userId)
 
 	time.Sleep(time.Minute * 2)
-	publicDns := p.getPublicDnsName(*instanceId)
+	externalIP, internalIP := p.getIPsForInstance(*instanceId)
 
-	p.API.LogDebug("AWS INFO", "InstanceId", instanceId, "PublicDnsName", publicDns)
+	p.API.LogDebug("AWS INFO", "InstanceId", instanceId, "PublicIP", externalIP)
 
 	// Add tags to the created instance
 	_, errtag := svc.CreateTags(&ec2.CreateTagsInput{
@@ -181,18 +182,18 @@ func (p *Plugin) spinServer(userId, channelId string, parameters []string) (inst
 	}
 
 	// Set the DNS
-	domainName, err = p.updateRoute53Subdomain(dnsName, publicDns, "CREATE")
+	domainName, err = p.updateRoute53Subdomain(dnsName, externalIP, "CREATE")
 	if err != nil {
-		p.API.LogError("Unable to set up S3 subdomain using the aws public name", "user_id", userId, "InstanceId", instanceId, "PublicDnsName", publicDns, "err", err.Error())
-		return *instanceId, publicDns
+		p.API.LogError("Unable to set up S3 subdomain using the aws public name", "user_id", userId, "InstanceId", instanceId, "PublicIp", externalIP, "err", err.Error())
+		return *instanceId, externalIP, internalIP
 	}
 	msg = "Setting the DNS"
 	p.sendEphemeralMessage(msg, channelId, userId)
 
-	return *instanceId, domainName
+	return *instanceId, domainName, internalIP
 }
 
-func (p *Plugin) sendMessageSpinServer(c *plugin.Context, args *model.CommandArgs, publicDNSName string) {
+func (p *Plugin) sendMessageSpinServer(c *plugin.Context, args *model.CommandArgs, publicIP string, internalIP string) {
 	config := p.API.GetConfig()
 	siteURLPort := *config.ServiceSettings.ListenAddress
 	action1 := &model.PostAction{
@@ -201,20 +202,24 @@ func (p *Plugin) sendMessageSpinServer(c *plugin.Context, args *model.CommandArg
 		Integration: &model.PostActionIntegration{
 			Context: map[string]interface{}{
 				"action":     "destroy",
-				"public_dns": publicDNSName,
+				"public_dns": publicIP,
 				"user_id":    args.UserId,
 			},
 			URL: fmt.Sprintf("http://localhost%v/plugins/%v/destroy", siteURLPort, PluginId),
 		},
 	}
 	sa1 := &model.SlackAttachment{
-		Text: "Your Test server was created. Access here: https://" + publicDNSName,
+		Text: "Your Test server was created. Access here: https://" + publicIP,
 		Actions: []*model.PostAction{
 			action1,
 		},
 	}
+	attch := &model.SlackAttachment{
+		Text: "Internal IP: " + internalIP,
+	}
 	attachments := make([]*model.SlackAttachment, 0)
 	attachments = append(attachments, sa1)
+	attachments = append(attachments, attch)
 
 	spinPost := &model.Post{
 		Message:   "",
@@ -234,13 +239,14 @@ func (p *Plugin) sendMessageSpinServer(c *plugin.Context, args *model.CommandArg
 			"user_id", args.UserId,
 			"err", err.Error(),
 		)
-	} else {
-		p.API.LogDebug(
-			"Posted new test server",
-			"user_id", args.UserId,
-			"publicDNSName", publicDNSName,
-		)
 	}
+	p.API.LogDebug(
+		"Posted new test server",
+		"user_id", args.UserId,
+		"publicIP", publicIP,
+		"internalIP", internalIP,
+	)
+
 }
 
 func (p *Plugin) storeInstanceId(userID, instanceId string) error {
@@ -256,7 +262,7 @@ func (p *Plugin) getInstanceId(userID string) string {
 	return string(instanceId)
 }
 
-func (p *Plugin) deleteInstanceId(userID, PublicDnsName string) (info string, err *model.AppError) {
+func (p *Plugin) deleteInstanceId(userID, PublicIP string) (info string, err *model.AppError) {
 	instanceId, err := p.API.KVGet(userID)
 	if err != nil {
 		return "", err
@@ -287,7 +293,7 @@ func (p *Plugin) deleteInstanceId(userID, PublicDnsName string) (info string, er
 
 	// Remove route53 entry
 	//TODO not return and try again and alert the user
-	_, errr = p.updateRoute53Subdomain(instance, PublicDnsName, "DELETE")
+	_, errr = p.updateRoute53Subdomain(instance, PublicIP, "DELETE")
 	if err != nil {
 		return instance, model.NewAppError("updateRoute53Subdomain Delete", "", nil, errr.Error(), -1)
 	}
@@ -323,7 +329,7 @@ func (p *Plugin) updateRoute53Subdomain(name, target, action string) (string, er
 	dnsName := name
 	targetServer := target
 	if action == "DELETE" {
-		targetServer = p.getPublicDnsName(name)
+		targetServer, _ = p.getIPsForInstance(name)
 		dnsName = target
 	}
 
@@ -335,7 +341,7 @@ func (p *Plugin) updateRoute53Subdomain(name, target, action string) (string, er
 					ResourceRecordSet: &route53.ResourceRecordSet{
 						Name: aws.String(dnsName),
 						TTL:  aws.Int64(30),
-						Type: aws.String("CNAME"),
+						Type: aws.String("A"),
 						ResourceRecords: []*route53.ResourceRecord{
 							{
 								Value: aws.String(targetServer),
@@ -357,7 +363,7 @@ func (p *Plugin) updateRoute53Subdomain(name, target, action string) (string, er
 	return dnsName, nil
 }
 
-func (p *Plugin) getPublicDnsName(instance string) string {
+func (p *Plugin) getIPsForInstance(instance string) (publicIP string, privateIP string) {
 	svc := ec2.New(session.New(), p.GetAwsConfig())
 	params := &ec2.DescribeInstancesInput{
 		InstanceIds: []*string{
@@ -367,10 +373,10 @@ func (p *Plugin) getPublicDnsName(instance string) string {
 	resp, err := svc.DescribeInstances(params)
 	if err != nil {
 		p.API.LogError("Problem getting instance", "Instance", instance, "err", err.Error())
-		return ""
+		return "", ""
 	}
 
-	return *resp.Reservations[0].Instances[0].PublicDnsName
+	return *resp.Reservations[0].Instances[0].PublicIpAddress, *resp.Reservations[0].Instances[0].PrivateIpAddress
 }
 
 func getCommandResponse(responseType, text string) *model.CommandResponse {
