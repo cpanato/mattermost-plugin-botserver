@@ -19,6 +19,7 @@ import (
 const (
 	SPIN_ICON_URL = "https://icon-icons.com/icons2/1371/PNG/512/robot01_90832.png"
 	SPIN_USERNAME = "Bot Server"
+	BOT_KV_KEY    = "_BOTSERVER_"
 )
 
 func getCommand() *model.Command {
@@ -115,8 +116,8 @@ func (p *Plugin) ExecuteCommand(c *plugin.Context, args *model.CommandArgs) (*mo
 			return getCommandResponse(model.COMMAND_RESPONSE_TYPE_EPHEMERAL, "Nothing to destroy."), nil
 		}
 		return getCommandResponse(model.COMMAND_RESPONSE_TYPE_EPHEMERAL, "Instance "+info+" destroyed."), nil
-
 	case "help":
+	default:
 		msg := "run:\n/bot-server spin [flags] to spin a new test server\n/bot-server destroy to destroy the test server"
 		return getCommandResponse(model.COMMAND_RESPONSE_TYPE_EPHEMERAL, msg), nil
 	}
@@ -148,6 +149,13 @@ func (p *Plugin) spinServer(userId, channelId string, parameters []string) (inst
 		SubnetId:         &p.configuration.AWSSubnetId,
 	}
 
+	var userName string
+	user, errUser := p.API.GetUser(userId)
+	if errUser != nil {
+		userName = userId
+	}
+	userName = user.Nickname
+
 	resp, err := svc.RunInstances(params)
 	if err != nil {
 		p.API.LogError("We could not create the aws resource", "user_id", userId, "err", err.Error())
@@ -174,6 +182,14 @@ func (p *Plugin) spinServer(userId, channelId string, parameters []string) (inst
 			{
 				Key:   aws.String("Created"),
 				Value: aws.String(time.Now().Format("2006-01-02/15:04:05")),
+			},
+			{
+				Key:   aws.String("UserName"),
+				Value: aws.String(userName),
+			},
+			{
+				Key:   aws.String("CreatedBy"),
+				Value: aws.String("BotServer"),
 			},
 		},
 	})
@@ -250,7 +266,8 @@ func (p *Plugin) sendMessageSpinServer(c *plugin.Context, args *model.CommandArg
 }
 
 func (p *Plugin) storeInstanceId(userID, instanceId string) error {
-	err := p.API.KVSet(userID, []byte(instanceId))
+	key := fmt.Sprintf("%s%s", BOT_KV_KEY, userID)
+	err := p.API.KVSet(key, []byte(instanceId))
 	if err != nil {
 		return fmt.Errorf("Encountered error saving instanceId mapping")
 	}
@@ -258,12 +275,14 @@ func (p *Plugin) storeInstanceId(userID, instanceId string) error {
 }
 
 func (p *Plugin) getInstanceId(userID string) string {
-	instanceId, _ := p.API.KVGet(userID)
+	key := fmt.Sprintf("%s%s", BOT_KV_KEY, userID)
+	instanceId, _ := p.API.KVGet(key)
 	return string(instanceId)
 }
 
 func (p *Plugin) deleteInstanceId(userID, PublicIP string) (info string, err *model.AppError) {
-	instanceId, err := p.API.KVGet(userID)
+	key := fmt.Sprintf("%s%s", BOT_KV_KEY, userID)
+	instanceId, err := p.API.KVGet(key)
 	if err != nil {
 		return "", err
 	}
@@ -271,7 +290,7 @@ func (p *Plugin) deleteInstanceId(userID, PublicIP string) (info string, err *mo
 		return "", nil
 	}
 
-	err = p.API.KVDelete(userID)
+	err = p.API.KVDelete(key)
 	if err != nil {
 		return "", err
 	}
